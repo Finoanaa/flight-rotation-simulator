@@ -1,0 +1,23 @@
+{
+  "TNR-DIE": "02h00min",
+  "DIE-TNR": "02h00min",
+  "TNR-SVB": "01h00min",
+  "SVB-TNR": "01h00min",
+  "TNR-MJN": "01h00min",
+  "MJN-TNR": "01h00min",
+  "TNR-NOS": "01h00min",
+  "NOS-TNR": "01h00min",
+  "TNR-TMM": "00h50min",
+  "TMM-TNR": "00h50min",
+  "TNR-WMN": "01h00min",
+  "WMN-TNR": "01h00min",
+  "TNR-SMS": "01h00min",
+  "SMS-TNR": "01h00min",
+  "TNR-MOQ": "01h00min",
+  "MOQ-TNR": "01h00min",
+  "TNR-TLE": "01h00min",
+  "TLE-TNR": "01h00min",
+  "TNR-FTU": "01h00min",
+  "FTU-TNR": "02h00min",
+  "SVB-TMM": "01h40min"
+}
