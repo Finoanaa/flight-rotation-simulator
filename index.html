@@ -1341,6 +1341,11 @@ function simulate() {
     console.error('Données manquantes');
     return;
   }
+   const messageErreurElem = document.getElementById('message-erreur');
+  if (messageErreurElem) {
+    messageErreurElem.textContent = '';
+  }
+
   const [typeLabel, consoStr] = "ATR72-600|2.5".split('|');
   const conso = parseFloat(consoStr);
   const rav = document.getElementById('cbRavitail').checked;
