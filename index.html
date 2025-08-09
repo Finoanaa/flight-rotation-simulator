@@ -244,24 +244,101 @@ table#tblVols th:nth-child(1) {
 table#tblVols th:nth-child(2) {
   width: 220px; /* plus large pour Route */
 }
-.ajout-cout-manuel {
+/* Liste coûts manuels : vertical et style spécifique */
+.liste-couts {
+  max-height: 130px;
+  overflow-y: auto;
+  padding-left: 0;
   margin-top: 8px;
-  padding-top: 6px;
+  margin-bottom: 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background-color: #fafafa;
+  list-style: none;
+  display: block; /* IMPORTANT pour désactiver flex hérité */
+}
+
+.liste-couts li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+  color: #333;
+}
+
+.liste-couts li:last-child {
+  border-bottom: none;
+}
+
+/* Bouton supprimer rouge et bien visible */
+.btn-supprimer {
+  background-color: #ff4d4d;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  line-height: 18px;
+  text-align: center;
+  padding: 0;
+  margin-left: 12px;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.btn-supprimer:hover {
+  background-color: #cc0000;
+  transform: scale(1.1);
+}
+
+.btn-supprimer:active {
+  transform: scale(0.95);
+}
+
+/* Bouton + Ajouter un coût */
+.btn-plus {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.btn-plus:hover {
+  background-color: #218838;
+}
+
+/* Formulaire d’ajout - séparation et layout */
+.ajout-cout-manuel {
+  margin-top: 10px;
+  padding-top: 8px;
   border-top: 1px dashed #ccc;
 }
 
 .form-inline {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .input-cost,
 .input-motif {
-  flex: 1 1 150px;
-  padding: 6px;
+  flex: 1 1 140px;
+  padding: 6px 8px;
   border: 1px solid #ccc;
   border-radius: 6px;
   font-size: 14px;
@@ -270,7 +347,7 @@ table#tblVols th:nth-child(2) {
 
 .btn-ajouter {
   flex: 0 0 auto;
-  padding: 6px 12px;
+  padding: 6px 14px;
   background-color: #1976d2;
   color: white;
   border: none;
@@ -278,13 +355,12 @@ table#tblVols th:nth-child(2) {
   cursor: pointer;
   font-size: 14px;
   white-space: nowrap;
+  transition: background-color 0.2s ease;
 }
 
 .btn-ajouter:hover {
   background-color: #125aa0;
 }
-
-
 </style>
 </head>
 <body>
@@ -696,7 +772,11 @@ vols.sort((a, b) => a.id.localeCompare(b.id));
     }
 
     const tr = document.createElement('tr');
-    const estIndispo = avionsIndisponibles.has(v.type_avion);
+
+// On vérifie si l'avion est indisponible en fonction du type ou de la matricule
+const cleAvion = `${v.type_avion}|${v.matricule}`;
+const estIndispo = avionsIndisponibles.has(cleAvion);
+
 const indicateur = estIndispo ? '<span style="color:red; margin-left:2px;">❌Changer de groupe</span>' : '';
 
     tr.innerHTML = `
@@ -752,11 +832,12 @@ const indicateur = estIndispo ? '<span style="color:red; margin-left:2px;">❌Ch
 //Avion indispo
 function remplirSelectIndispoAvion() {
   const select = document.getElementById('select-indispo-avion');
-  const avions = getAvionsMatricules(); // fonction qui retourne [[type,avion],...]
+  const avions = getAvionsMatricules(); // [[type, matricule], ...]
 
   select.innerHTML = `<option value="">-- Sélectionnez un avion --</option>` +
-    avions.map(([type, mat]) => `<option value="${type}">${type} (${mat})</option>`).join('');
+    avions.map(([type, mat]) => `<option value="${type}|${mat}">${type} (${mat})</option>`).join('');
 }
+
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cbIndispoAvion').addEventListener('change', function() {
@@ -791,26 +872,35 @@ function changerGroupe(indexVol, nouveauGroupe) {
   const vol = vols[indexVol];
   if (!vol) return;
 
-  // Extraire le numéro de suffixe depuis l'ID existant (ex: "Vol A1" → "1")
-  const match = vol.id.match(/^Vol\s+\S+(\d+)$/);
+  // Extraire suffixe du vol actuel (ex: "Vol A1" → "1")
+  const match = vol.id.match(/^Vol\s*\S+(\d+)$/);
   const suffixe = match ? match[1] : (indexVol + 1);
 
-    // Vérifier si le groupe a changé
+  // Construire l'ID cible dans le nouveau groupe
+  const nouvelId = `${nouveauGroupe}${suffixe}`;
+
+  // Chercher dans vols un vol avec le même ID dans le nouveau groupe (avant modification)
+  const volCorrespondant = vols.find(v => v.id === nouvelId);
+
+  // Vérifier si le groupe a changé
   if (!vol.id.startsWith(nouveauGroupe)) {
-    vol.marque = true; // 🔹 Marquer le vol comme déplacé
+    vol.marque = true; // Marquer comme déplacé
   }
 
-  // Mettre à jour l'ID avec le nouveau groupe
-  vol.id = `${nouveauGroupe}${suffixe}`;
+  // Mettre à jour l'ID du vol
+  vol.id = nouvelId;
 
+  // Mettre à jour type et matricule si vol correspondant trouvé
+  if (volCorrespondant && volCorrespondant !== vol) {
+    vol.type_avion = volCorrespondant.type_avion;
+    vol.matricule = volCorrespondant.matricule;
+  } else {
+    vol.type_avion = '';
+    vol.matricule = '';
+  }
 
-
-  // Reconstruire l'affichage
   buildTable();
 }
-
-
-
 
 function togglePanne(checkbox) {
   const i = +checkbox.dataset.i;
@@ -1197,6 +1287,54 @@ function ajouterCoutManuel(detailId) {
   }
   simulate();
 }
+
+function supprimerCoutManuel(detailId, index) {
+  if (!coutsManuels[detailId]) return;
+
+  // Retirer l'élément du tableau
+  coutsManuels[detailId].splice(index, 1);
+
+  // Réactualiser la liste affichée
+  const ul = document.getElementById(`liste-couts-${detailId}`);
+  if (coutsManuels[detailId].length > 0) {
+    ul.innerHTML = coutsManuels[detailId]
+      .map((c, idx) => `
+        <li>
+          ${c.motif} : ${c.montant.toLocaleString()} MGA
+          <button onclick="supprimerCoutManuel('${detailId}', ${idx})" style="margin-left:5px; color:red;">X</button>
+        </li>
+      `)
+      .join('');
+  } else {
+    ul.innerHTML = '<li style="color: #888">Aucun coût manuel</li>';
+  }
+
+  // Recalculer les totaux après suppression
+  recalculerTotaux();
+}
+function recalculerTotaux() {
+  // Ici tu relances ton rendu ou recalcul
+  simulate(); // Par exemple si c’est ta fonction qui régénère toutes les lignes
+}
+function afficherLigneCout(label, valeur) {
+  if (!valeur || valeur === 0) return ''; // ne rien afficher si 0 ou null
+  return `<div class="cost-line"><span>${label} :</span><strong>${fmt(valeur)}</strong></div>`;
+}
+
+function toggleAjoutCout(detailId) {
+  const form = document.getElementById(`container-${detailId}`);
+  const btn = document.getElementById(`btn-plus-${detailId}`);
+
+  if (form.style.display === "none" || form.style.display === "") {
+    form.style.display = "block";  // Affiche le formulaire
+    btn.style.display = "none";    // Cache le bouton
+  } else {
+    form.style.display = "none";   // Cache le formulaire
+    btn.style.display = "inline-block"; // Affiche le bouton
+  }
+}
+
+
 // Modification dans la fonction simulate() au niveau du calcul des coûts totaux
 function simulate() {
   if (!vols || !carburant || !couts || !hebergement) {
@@ -1349,32 +1487,47 @@ if (balisageEscaleNeeded) {
     <span>${fmt(cTot)}</span>
     <button class="details-icon" onclick="toggleDetails('${detailId}')">Détails</button>
     <div class="details-card" id="${detailId}" style="display: none; max-width: 300px; margin-top: 5px;">
-      <div class="cost-line"><span>Prix carburant (${v.depart}) :</span><strong>${prixCarburant.toFixed(2)} MGA/L</strong></div>
-      <div class="cost-line"><span>Coût carburant total :</span><strong>${fmt(cCarb)}</strong></div>
-      <div class="cost-line"><span>Coût atterrissage :</span><strong>${fmt(cAtterrissage || 0)}</strong></div>
-      <div class="cost-line"><span>Coût atterrissage escale :</span><strong>${fmt(cAtterrissageEscale || 0)}</strong></div>
-      <div class="cost-line"><span>Coût balisage :</span><strong>${fmt(cBalisage || 0)}</strong></div>
-      <div class="cost-line"><span>Coût balisage escale :</span><strong>${fmt(balisageEscale)}</strong></div>
-      <div class="cost-line"><span>Coût approche :</span><strong>${fmt(cApproche || 0)}</strong></div>
-      <div class="cost-line"><span>Coût approche escale :</span><strong>${fmt(cApprocheEscale || 0)}</strong></div>
-      <div class="cost-line"><span>Coût panne :</span><strong>${v.est_en_panne ? fmt(200000) : fmt(0)}</strong></div>
-      <div class="cost-line"><span>Hébergement total :</span><strong>${fmt(coutHebergement)}</strong></div>
-      <div class="cost-line">
-       <strong>Coûts manuels ajoutés :</strong>
-    </div>
-<ul class="cost-line" id="liste-couts-${detailId}">
-  ${coutsManuels[detailId] ? coutsManuels[detailId]
-    .map((c, i) => `<li>${c.motif} : ${c.montant.toLocaleString()} MGA</li>`)
-    .join('') : '<li style="color: #888">Aucun coût manuel</li>'}
-</ul>
+      ${prixCarburant && prixCarburant !== 0 
+  ? `<div class="cost-line"><span>Prix carburant (${v.depart}) :</span><strong>${prixCarburant.toFixed(2)} MGA/L</strong></div>` 
+  : ''
+}
+      ${afficherLigneCout("Coût carburant total", cCarb)}
+      ${afficherLigneCout("Coût atterrissage", cAtterrissage)}
+      ${afficherLigneCout("Coût atterrissage escale", cAtterrissageEscale)}
+      ${afficherLigneCout("Coût balisage", cBalisage)}
+      ${afficherLigneCout("Coût balisage escale", balisageEscale)}
+      ${afficherLigneCout("Coût approche", cApproche)}
+      ${afficherLigneCout("Coût approche escale", cApprocheEscale)}
+      ${v.est_en_panne ? afficherLigneCout("Coût panne", 200000) : ""}
+      ${afficherLigneCout("Hébergement total", coutHebergement)}
 
-<div class="ajout-cout-manuel" id="container-${detailId}">
+<ul class="liste-couts" id="liste-couts-${detailId}">
+  ${
+    coutsManuels[detailId] && coutsManuels[detailId].length > 0
+      ? coutsManuels[detailId]
+          .map(
+            (c, idx) => `
+              <li>
+                <span>${c.motif} : ${c.montant.toLocaleString()} MGA</span>
+                <button class="btn-supprimer" onclick="supprimerCoutManuel('${detailId}', ${idx})">×</button>
+              </li>`
+          )
+          .join('')
+      : ''
+  }
+</ul>
+<button class="btn-plus" id="btn-plus-${detailId}" onclick="toggleAjoutCout('${detailId}')">+ Ajouter un coût</button>
+
+
+<!-- Formulaire caché par défaut -->
+<div class="ajout-cout-manuel" id="container-${detailId}" style="display:none; margin-top:5px;">
   <div class="form-inline">
     <input type="number" id="customCost-${detailId}" placeholder="Montant (MGA)" class="input-cost" />
     <input type="text" id="customMotif-${detailId}" placeholder="Motif du coût" class="input-motif" />
     <button onclick="ajouterCoutManuel('${detailId}')" class="btn-ajouter">Ajouter</button>
   </div>
 </div>
+
 
 
     </div>
