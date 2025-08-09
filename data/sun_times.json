@@ -1946,6 +1946,56 @@
     { "day": 1, "sunrise": "01:57", "sunset": "15:01" },
     { "day": 15, "sunrise": "02:01", "sunset": "15:11" }
   ]
+},
+"MAROANTSETRA": {
+  "JAN": [
+    { "day": 1, "sunrise": "02:14", "sunset": "15:15" },
+    { "day": 15, "sunrise": "02:23", "sunset": "15:18" }
+  ],
+  "FEB": [
+    { "day": 1, "sunrise": "02:31", "sunset": "15:17" },
+    { "day": 15, "sunrise": "02:38", "sunset": "15:12" }
+  ],
+  "MAR": [
+    { "day": 1, "sunrise": "02:42", "sunset": "15:04" },
+    { "day": 15, "sunrise": "02:44", "sunset": "14:56" }
+  ],
+  "APR": [
+    { "day": 1, "sunrise": "02:46", "sunset": "14:43" },
+    { "day": 15, "sunrise": "02:48", "sunset": "14:33" }
+  ],
+  "MAY": [
+    { "day": 1, "sunrise": "02:51", "sunset": "14:25" },
+    { "day": 15, "sunrise": "02:55", "sunset": "14:20" }
+  ],
+  "JUN": [
+    { "day": 1, "sunrise": "02:59", "sunset": "14:17" },
+    { "day": 15, "sunrise": "03:04", "sunset": "14:18" }
+  ],
+  "JUL": [
+    { "day": 1, "sunrise": "03:07", "sunset": "14:22" },
+    { "day": 15, "sunrise": "03:07", "sunset": "14:27" }
+  ],
+  "AUG": [
+    { "day": 1, "sunrise": "03:03", "sunset": "14:31" },
+    { "day": 15, "sunrise": "02:57", "sunset": "14:34" }
+  ],
+  "SEP": [
+    { "day": 1, "sunrise": "02:46", "sunset": "14:36" },
+    { "day": 15, "sunrise": "02:37", "sunset": "14:37" }
+  ],
+  "OCT": [
+    { "day": 1, "sunrise": "02:23", "sunset": "14:37" },
+    { "day": 15, "sunrise": "02:15", "sunset": "14:39" }
+  ],
+  "NOV": [
+    { "day": 1, "sunrise": "02:05", "sunset": "14:44" },
+    { "day": 15, "sunrise": "02:02", "sunset": "14:50" }
+  ],
+  "DEC": [
+    { "day": 1, "sunrise": "02:01", "sunset": "14:58" },
+    { "day": 15, "sunrise": "02:05", "sunset": "15:07" }
+  ]
 }
 
 }

@@ -309,7 +309,7 @@ table#tblVols th:nth-child(2) {
     </label>
   </div>
      <label><input type="checkbox" id="cbRavitail"> Escale</label>
-
+<div id="message-erreur" style="color: red; font-weight: bold; margin-bottom: 10px;"></div>
 <div id="escale-fields" style="display: none; margin-top:10px;">
   <label for="typeEscale">Type d’escale :</label>
   <select id="typeEscale">
@@ -704,11 +704,12 @@ const indicateur = estIndispo ? '<span style="color:red; margin-left:2px;">❌Ch
       <button class="btn-echanger" data-i="${i}" onclick="onSelectSwap(this)" style="margin-left:5px;">↕️</button>
   </td>
       <td>
-           <select onchange="changerGroupe(${i}, this.value)">
-    ${['Vol A', 'Vol B', 'Vol C'].map(g =>
-      `<option value="${g}" ${v.id.startsWith(g) ? 'selected' : ''}>${g}</option>`
-    ).join('')}
-  </select>
+          <select onchange="changerGroupe(${i}, this.value)">
+  ${['Vol A', 'Vol B', 'Vol C'].map(g =>
+    `<option value="${g}" ${v.id.startsWith(g) ? 'selected' : ''}>${g}</option>`
+  ).join('')}
+</select>
+ ${v.marque ? '<span style="color:red;font-weight:bold;">★</span>' : ''}
         <select data-i="${i}" data-f="depart" onchange="updateRoute(this)">
           ${airports.map(a => `<option ${a === v.depart ? 'selected' : ''}>${a}</option>`).join('')}
         </select>
@@ -786,17 +787,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 //
-function changerGroupe(index, nouveauGroupe) {
-  const vol = vols[index];
+function changerGroupe(indexVol, nouveauGroupe) {
+  const vol = vols[indexVol];
+  if (!vol) return;
 
-  // Modifier l'ID du vol pour refléter le nouveau groupe
-  const suffixe = vol.id.split(' ')[2] || index + 1; // ex: "Vol A 3"
-  vol.id = `* Vol ${nouveauGroupe} ${suffixe}`;
+  // Extraire le numéro de suffixe depuis l'ID existant (ex: "Vol A1" → "1")
+  const match = vol.id.match(/^Vol\s+\S+(\d+)$/);
+  const suffixe = match ? match[1] : (indexVol + 1);
+
+    // Vérifier si le groupe a changé
+  if (!vol.id.startsWith(nouveauGroupe)) {
+    vol.marque = true; // 🔹 Marquer le vol comme déplacé
+  }
+
+  // Mettre à jour l'ID avec le nouveau groupe
+  vol.id = `${nouveauGroupe}${suffixe}`;
 
 
-  // Met à jour l'affichage complet
+
+  // Reconstruire l'affichage
   buildTable();
 }
+
+
 
 
 function togglePanne(checkbox) {
@@ -933,7 +946,8 @@ const airportNameMap = {
   "TNR": "ANTANANARIVO",
   "WAI": "ANTSOHIHY",
   "WFI": "FIANARANTSOA",
-  "SMS": "SAINTE MARIE"
+  "SMS": "SAINTE MARIE",
+  "WMN": "MAROANTSETRA"
 };
 
 const moisLettres = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -1227,7 +1241,7 @@ let cAtterrissageEscale = 0;
 let cApprocheEscale = 0;
 if(
   ravitaillementData &&
-  ravitaillementData.typeEscale === 'standard' &&
+  ravitaillementData.typeEscale === 'hebergement' || ravitaillementData.typeEscale === 'standard' &&
   ravitaillementData.volId === v.id
 ){
   const escaleKey = `${v.type_avion}-${escale}`; // exemple: ATR72-600-ANM
@@ -1271,9 +1285,26 @@ if (
     const coutAsecnaEscale = couts[keyEscale]?.balisage_asecna || 0;
     const coutBalisageTotalEscale = coutAdemaEscale + coutAsecnaEscale;
 
-    if (balisageEscaleNeeded && coutBalisageTotalEscale > 0) {
-      balisageEscale = coutBalisageTotalEscale;
+if (balisageEscaleNeeded) {
+  const coutBalisageTotalEscale = coutAdemaEscale + coutAsecnaEscale;
+
+  if (coutAdemaEscale === 0 && coutAsecnaEscale === 0) {
+    console.log('Condition escale interdite détectée');
+    escaleInterdite = true;
+    const messageErreurElem = document.getElementById('message-erreur');
+    if (messageErreurElem) {
+      messageErreurElem.textContent = `⚠️ L'escale à l'aéroport ${escale} non autorisée pour le vol ${v.id}.`;
     }
+  } else if (coutBalisageTotalEscale > 0) {
+    balisageEscale = coutBalisageTotalEscale;
+    // On peut aussi effacer le message si besoin ici
+    const messageErreurElem = document.getElementById('message-erreur');
+    if (messageErreurElem) {
+      messageErreurElem.textContent = '';
+    }
+  }
+}
+
     console.log(`Coûts pour clé ${keyEscale}:`, couts[keyEscale]);
 
     console.log('sunsetEscale:', sunsetEscale, 'sunriseEscale:', sunriseEscale);
