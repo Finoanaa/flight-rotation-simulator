@@ -93,6 +93,13 @@
     table#tblVols th:nth-child(1) { width: 50px}
     table#tblVols th:nth-child(2) { width: 200px; }
 
+    .escale-row {
+  background-color: #e0f0ff;
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+
     button.details-btn {
   background: var(--prim);
   color: white;
@@ -361,6 +368,13 @@ table#tblVols th:nth-child(2) {
 .btn-ajouter:hover {
   background-color: #125aa0;
 }
+.routes-cell {
+  max-width: 200px; /* ou 250px selon espace disponible */
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
 </style>
 </head>
 <body>
@@ -731,65 +745,116 @@ function updatePassagers(input) {
   buildTable();
 }
 */
+function ajouterVolEscale() {
+  if (!ravitaillementData || !ravitaillementData.volId || !ravitaillementData.escaleCode) {
+    console.warn("Pas assez d'informations pour créer le vol d'escale.");
+    return;
+  }
+
+  const volOriginal = vols.find(v => v.id === ravitaillementData.volId);
+  if (!volOriginal) return;
+
+  // On duplique le vol original pour créer la partie escale -> destination
+  const volEscale = JSON.parse(JSON.stringify(volOriginal));
+
+  // Garder le même ID que le vol original
+  volEscale.id = volOriginal.id;
+
+  // Départ depuis l’escale
+  volEscale.depart = ravitaillementData.escaleCode;
+
+  // Destination finale inchangée
+  // Heure départ = heure de l’escale
+  volEscale.heure_depart = ravitaillementData.heureEscale || "00:00";
+
+  // On calcule la distance escale -> arrivée
+  volEscale.distance_nm = calculerDistanceNM(volEscale.depart, volEscale.arrivee);
+// Modifier le vol original pour que sa destination soit l'escale
+  volOriginal.arrivee = ravitaillementData.escaleCode;
+
+  // Recalculer distance du vol original départ -> escale
+  volOriginal.distance_nm = calculerDistanceNM(volOriginal.depart, volOriginal.arrivee);
+
+  // Ajouter le vol escale dans la liste
+  vols.push(volEscale);
+  volEscale.estEscale = true;
+
+}
 
 
 // Construit le tableau des vols avec les lignes et sélections
-function buildTable() {
+function buildTable() { 
   const tbody = document.getElementById('tbodyVols');
   tbody.innerHTML = '';
   const airports = airportsFromPrices;
 
-vols.sort((a, b) => a.id.localeCompare(b.id));
+  vols.sort((a, b) => a.id.localeCompare(b.id));
 
   let currentGroup = null;
   let displayIndex = 0;
 
+  // Construire un mapping groupe => index unique
+  const indexParGroupe = {};
+  let indexCompteur = 1;
+
   vols.forEach(v => {
-  const groupMatch = v.id.match(/^(Vol [A-Z])/);
-  v.groupe = groupMatch ? groupMatch[1] : 'Autres vols';
-});
+    const groupMatch = v.id.match(/^(Vol [A-Z])/);
+    const groupeCle = groupMatch ? groupMatch[1] : 'Autres vols';
+    if (!(groupeCle in indexParGroupe)) {
+      indexParGroupe[groupeCle] = indexCompteur++;
+    }
+    v.groupe = groupeCle; // on fixe groupe ici aussi pour réutiliser
+  });
 
   vols.forEach((v, i) => {
     if (!airports.includes(v.depart)) v.depart = airports[0] || '';
     if (!airports.includes(v.arrivee)) v.arrivee = airports[0] || '';
 
-    const groupMatch = v.id.match(/^(Vol [A-Z])/);
-    const groupe = groupMatch ? groupMatch[1] : 'Autres vols';
+    const groupe = v.groupe;
 
     if (groupe !== currentGroup) {
       currentGroup = groupe;
       const trGroup = document.createElement('tr');
       trGroup.classList.add('group-row');
       trGroup.innerHTML = `
-  <td colspan="10">
-  <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
-    <span>${currentGroup}</span>
-  </div>
-</td>
-`;
+        <td colspan="10">
+          <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
+            <span>${currentGroup}</span>
+          </div>
+        </td>
+      `;
 
       tbody.appendChild(trGroup);
     }
 
     const tr = document.createElement('tr');
 
-// On vérifie si l'avion est indisponible en fonction du type ou de la matricule
-const cleAvion = `${v.type_avion}|${v.matricule}`;
-const estIndispo = avionsIndisponibles.has(cleAvion);
+    // On vérifie si l'avion est indisponible en fonction du type ou de la matricule
+    const cleAvion = `${v.type_avion}|${v.matricule}`;
+    const estIndispo = avionsIndisponibles.has(cleAvion);
 
-const indicateur = estIndispo ? '<span style="color:red; margin-left:2px;">❌Changer de groupe</span>' : '';
+    const indicateur = estIndispo ? '<span style="color:red; margin-left:2px;">❌Changer de groupe</span>' : '';
 
     tr.innerHTML = `
-      <td>${displayIndex + 1}
-      <button class="btn-echanger" data-i="${i}" onclick="onSelectSwap(this)" style="margin-left:5px;">↕️</button>
-  </td>
-      <td>
-          <select onchange="changerGroupe(${i}, this.value)">
-  ${['Vol A', 'Vol B', 'Vol C'].map(g =>
-    `<option value="${g}" ${v.id.startsWith(g) ? 'selected' : ''}>${g}</option>`
-  ).join('')}
-</select>
- ${v.marque ? '<span style="color:red;font-weight:bold;">★</span>' : ''}
+      <td>${indexParGroupe[groupe]}</td>
+      <td style="position: relative; padding-top: 18px;">
+        ${v.estEscale ? `
+          <div style="
+            position: absolute;
+            top: 4px;
+            left: 2px;
+            font-size: 0.9em;
+            font-weight: bold;
+            color: blue;
+            user-select: none;
+          ">[Escale]</div>
+        ` : ''}
+        <select onchange="changerGroupe(${i}, this.value)">
+          ${['Vol A', 'Vol B', 'Vol C'].map(g =>
+            `<option value="${g}" ${v.id.startsWith(g) ? 'selected' : ''}>${g}</option>`
+          ).join('')}
+        </select>
+        ${v.marque ? '<span style="color:red;font-weight:bold;">★</span>' : ''}
         <select data-i="${i}" data-f="depart" onchange="updateRoute(this)">
           ${airports.map(a => `<option ${a === v.depart ? 'selected' : ''}>${a}</option>`).join('')}
         </select>
@@ -798,30 +863,31 @@ const indicateur = estIndispo ? '<span style="color:red; margin-left:2px;">❌Ch
           ${airports.map(a => `<option ${a === v.arrivee ? 'selected' : ''}>${a}</option>`).join('')}
         </select>
       </td>
+
       <td><input type="date" value="${v.date_depart}" data-i="${i}" data-f="date_depart" onchange="updateVal(this)"></td>
       <td><input type="time" value="${v.heure_depart}" data-i="${i}" data-f="heure_depart" onchange="updateVal(this)"></td>
       <td class="heureArrivee"></td>
-    <td class="avion-group">
-  <input type="text" value="${v.type_avion || ''}" data-i="${i}" data-f="type_avion" placeholder="Type avion" onchange="updateVal(this)">
-  ${indicateur}
-  <input type="text" value="${v.matricule || ''}" data-i="${i}" data-f="matricule" placeholder="Matricule" onchange="updateVal(this)" style="margin-top:4px;">
-  <label>
-    <input type="checkbox" data-i="${i}" onchange="togglePanne(this)" ${v.est_en_panne ? 'checked' : ''}>
-    <span class="label-text">Panne</span>
-  </label>
-</td>
-<td>
-  <div style="display: flex; flex-direction: column; gap: 4px;">
-    <input class="passager-input" type="number" value="${v.nb_passagers?.economique || 0}" data-i="${i}" data-f="eco" onchange="updatePassagers(this)" placeholder="Éco">
-    <input class="passager-input" type="number" value="${v.nb_passagers?.affaire || 0}" data-i="${i}" data-f="aff" onchange="updatePassagers(this)" placeholder="Affaire">
-  </div>
-</td>
+      <td class="avion-group">
+        <input type="text" value="${v.type_avion || ''}" data-i="${i}" data-f="type_avion" placeholder="Type avion" onchange="updateVal(this)">
+        ${indicateur}
+        <input type="text" value="${v.matricule || ''}" data-i="${i}" data-f="matricule" placeholder="Matricule" onchange="updateVal(this)" style="margin-top:4px;">
+        <label>
+          <input type="checkbox" data-i="${i}" onchange="togglePanne(this)" ${v.est_en_panne ? 'checked' : ''}>
+          <span class="label-text">Panne</span>
+        </label>
+      </td>
+      <td>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <input class="passager-input" type="number" value="${v.nb_passagers?.economique || 0}" data-i="${i}" data-f="eco" onchange="updatePassagers(this)" placeholder="Éco">
+          <input class="passager-input" type="number" value="${v.nb_passagers?.affaire || 0}" data-i="${i}" data-f="aff" onchange="updatePassagers(this)" placeholder="Affaire">
+        </div>
+      </td>
 
       <td class="priceEco"></td>
       <td class="priceAff"></td>
       <td class="balisage"></td>
-       
-`;
+    `;
+
     tbody.appendChild(tr);
     tr.querySelector(".heureArrivee").textContent = getArrivalTime(v) ?? "—";
 
@@ -829,6 +895,7 @@ const indicateur = estIndispo ? '<span style="color:red; margin-left:2px;">❌Ch
     displayIndex++;
   });
 }
+
 //Avion indispo
 function remplirSelectIndispoAvion() {
   const select = document.getElementById('select-indispo-avion');
@@ -1341,214 +1408,225 @@ function simulate() {
     console.error('Données manquantes');
     return;
   }
-   const messageErreurElem = document.getElementById('message-erreur');
+  const messageErreurElem = document.getElementById('message-erreur');
   if (messageErreurElem) {
     messageErreurElem.textContent = '';
   }
 
+  // Consommation fixe (à adapter si besoin)
   const [typeLabel, consoStr] = "ATR72-600|2.5".split('|');
   const conso = parseFloat(consoStr);
-  const rav = document.getElementById('cbRavitail').checked;
-  const volIdSelectionne = ravitaillementData.volId;
-  const escale = ravitaillementData.escaleCode;
-const volSelectionne = vols.find(v => v.id === volIdSelectionne);
 
+  // Données d’escale
+  const volIdSelectionne = ravitaillementData?.volId;
+  const escaleCode = ravitaillementData?.escaleCode;
+  const typeEscale = ravitaillementData?.typeEscale;
 
-  let html = '<table><tr><th>#</th><th>Route</th><th>Revenu</th><th>Coût</th><th>Bénéfice</th></tr>';
-  let revTot = 0, coutTot = 0;
-  
+  // Construction d’un index par groupe comme dans buildTable (ex: Vol A = 0, Vol B = 1, etc.)
+  const groupes = [...new Set(vols.map(v => v.groupe))];
+  const indexParGroupe = {};
+  groupes.forEach((g, i) => { indexParGroupe[g] = i + 1; }); // indice à partir de 1
 
-  vols.forEach((v, i) => {
+  // Objets pour stocker cumuls par index
+  const cumulsParIndex = {};
+  const escalesParIndex = {};
+
+  // Regrouper vols par index (groupe)
+  vols.forEach(v => {
+    const idx = indexParGroupe[v.groupe];
+
+    if (!cumulsParIndex[idx]) {
+      cumulsParIndex[idx] = {
+        revenu: 0,
+        cout: 0,
+        benefice: 0,
+        routes: [],
+        detailsCouts: {}, // cumuls des coûts par type pour détails
+      };
+      escalesParIndex[idx] = { escale: false, hebergement: false };
+    }
+
+    // Ajouter les routes (format depart→arrivee)
+    cumulsParIndex[idx].routes.push(`${v.depart}→${v.arrivee}`);
+
+    // Marquer escale / hébergement
+    if (v.estEscale) {
+      escalesParIndex[idx].escale = true;
+    }
+    if (typeEscale === 'hebergement' && volIdSelectionne === v.id) {
+      escalesParIndex[idx].hebergement = true;
+    }
+
+    // Calcul carburant
     const litres = (v.distance_nm || 0) * conso;
     const prixCarburant = carburant[v.depart] || 0;
     const cCarb = litres * prixCarburant;
+
+    // Calcul coûts escale
     const key = `${v.type_avion}-${v.arrivee}`;
     const cEscal = couts[key] || {};
     const cAtterrissage = (cEscal.atterrissage_adema || 0) + (cEscal.atterrissage_asecna || 0) + (cEscal.atterrissage_ravinala || 0);
     const cBalisage = (cEscal.balisage_adema || 0) + (cEscal.balisage_asecna || 0);
     const cApproche = cEscal.approche_adema || 0;
+
     const nbPassagersTotal = (v.nb_passagers?.economique || 0) + (v.nb_passagers?.affaire || 0);
-    
-   let coutHebergement = 0;
-   let hebergementUnitCost = 0;
-if (
-  ravitaillementData &&
-  ravitaillementData.typeEscale === 'hebergement' &&
-  ravitaillementData.volId === v.id // le vol courant dans la boucle
-) {
-  hebergementUnitCost = getHebergementCost(escale);
-  coutHebergement = hebergementUnitCost*nbPassagersTotal;
-  
-}
-let cAtterrissageEscale = 0;
-let cApprocheEscale = 0;
-if(
-  ravitaillementData &&
-  ravitaillementData.typeEscale === 'hebergement' || ravitaillementData.typeEscale === 'standard' &&
-  ravitaillementData.volId === v.id
-){
-  const escaleKey = `${v.type_avion}-${escale}`; // exemple: ATR72-600-ANM
-  const escaleCouts = couts[escaleKey] || {};
 
- cAtterrissageEscale =
-    (escaleCouts.atterrissage_adema || 0) +
-    (escaleCouts.atterrissage_asecna || 0) +
-    (escaleCouts.atterrissage_ravinala || 0);
-
- cApprocheEscale=
-    (escaleCouts.approche_adema || 0);
-  }
-
-let balisageEscale = 0; // initialisé
-
-if (
-  typeof ravitaillementData !== 'undefined' &&
-  ravitaillementData.escaleCode &&
-  v.id === volSelectionne?.id &&
-  ravitaillementData.heureEscale
-) {
-  const escale = ravitaillementData.escaleCode;
-  const heureEscale = ravitaillementData.heureEscale;
-
-  const sunsetEscale = getSunsetForDate(escale, v.date_depart);
-  const sunriseEscale = getSunriseForNextDay(escale, v.date_depart);
-
-  if (sunsetEscale && sunriseEscale) {
-    const escaleMin = parseMinutes(heureEscale);
-    const sunsetMin = parseMinutes(sunsetEscale);
-    const sunriseMin = parseMinutes(sunriseEscale);
-
-    const escaleAfterSunset = escaleMin > (sunsetMin - 20);
-    const escaleBeforeSunrise = escaleMin <= sunriseMin;
-
-    const balisageEscaleNeeded = escaleAfterSunset || escaleBeforeSunrise;
-
-    const keyEscale = `${v.type_avion}-${escale}`;
-    const coutAdemaEscale = couts[keyEscale]?.balisage_adema || 0;
-    const coutAsecnaEscale = couts[keyEscale]?.balisage_asecna || 0;
-    const coutBalisageTotalEscale = coutAdemaEscale + coutAsecnaEscale;
-
-if (balisageEscaleNeeded) {
-  const coutBalisageTotalEscale = coutAdemaEscale + coutAsecnaEscale;
-
-  if (coutAdemaEscale === 0 && coutAsecnaEscale === 0) {
-    console.log('Condition escale interdite détectée');
-    escaleInterdite = true;
-    const messageErreurElem = document.getElementById('message-erreur');
-    if (messageErreurElem) {
-      messageErreurElem.textContent = `⚠️ L'escale à l'aéroport ${escale} non autorisée pour le vol ${v.id}.`;
+    // Hébergement si applicable
+    let coutHebergement = 0;
+    if (typeEscale === 'hebergement' && volIdSelectionne === v.id) {
+      const hebergUnitCost = getHebergementCost(escaleCode);
+      coutHebergement = hebergUnitCost * nbPassagersTotal;
     }
-  } else if (coutBalisageTotalEscale > 0) {
-    balisageEscale = coutBalisageTotalEscale;
-    // On peut aussi effacer le message si besoin ici
-    const messageErreurElem = document.getElementById('message-erreur');
-    if (messageErreurElem) {
-      messageErreurElem.textContent = '';
+
+    // Coûts supplémentaires escale (atterrissage, approche)
+    let cAtterrissageEscale = 0;
+    let cApprocheEscale = 0;
+    if (
+      (typeEscale === 'hebergement' || typeEscale === 'standard') &&
+      volIdSelectionne === v.id
+    ) {
+      const escaleKey = `${v.type_avion}-${escaleCode}`;
+      const escaleCouts = couts[escaleKey] || {};
+      cAtterrissageEscale =
+        (escaleCouts.atterrissage_adema || 0) +
+        (escaleCouts.atterrissage_asecna || 0) +
+        (escaleCouts.atterrissage_ravinala || 0);
+      cApprocheEscale = escaleCouts.approche_adema || 0;
     }
-  }
-}
 
-    console.log(`Coûts pour clé ${keyEscale}:`, couts[keyEscale]);
+    // Coût balisage escale (simplifié)
+    let balisageEscale = 0;
+    if (
+      typeof ravitaillementData !== 'undefined' &&
+      escaleCode &&
+      v.id === volIdSelectionne &&
+      ravitaillementData.heureEscale
+    ) {
+      const keyEscale = `${v.type_avion}-${escaleCode}`;
+      balisageEscale = (couts[keyEscale]?.balisage_adema || 0) + (couts[keyEscale]?.balisage_asecna || 0);
+    }
 
-    console.log('sunsetEscale:', sunsetEscale, 'sunriseEscale:', sunriseEscale);
-     console.log(`Balisage escale nécessaire pour vol ${v.id} à l'escale ${escale}: ${fmt(balisageEscale)} MGA`);
-
-  }
-}
-
-  console.log(`Coût unitaire hébergement: ${hebergementUnitCost}`);
-  console.log(`Coût atterrisage escale: ${cAtterrissageEscale}`);
-  console.log("ravitaillementData.volId =", ravitaillementData.volId);
-
-   console.log(`Vol sélectionné pour hébergement: ${volIdSelectionne}`, nbPassagersTotal , "Coût hébergement:", coutHebergement );
-    // Somme des coûts manuels ajoutés
+    // Coûts manuels
+    const detailId = `detail-${idx}`;
     let coutsManuelsTotal = 0;
-    const detailId = `detail-${i}`;
     if (coutsManuels[detailId]) {
       coutsManuelsTotal = coutsManuels[detailId].reduce((sum, c) => sum + c.montant, 0);
     }
 
-    const cTot = cCarb + cAtterrissage + cBalisage + cApproche 
-      + (v.est_en_panne ? 200000 : 0)
-      + coutHebergement
-      + cAtterrissageEscale
-      + cApprocheEscale
-      + balisageEscale
-      + coutsManuelsTotal; // Ajout des coûts manuels ici
+    // Coût total
+    const cTot =
+      cCarb +
+      cAtterrissage +
+      cBalisage +
+      cApproche +
+      (v.est_en_panne ? 200000 : 0) +
+      coutHebergement +
+      cAtterrissageEscale +
+      cApprocheEscale +
+      balisageEscale +
+      coutsManuelsTotal;
 
-    const rev = (v.nb_passagers?.economique || 0) * (v.prix_ticket_eco || 0)+ (v.nb_passagers?.affaire || 0) * (v.prix_ticket_affaire);
+    // Revenu
+    const rev =
+      (v.nb_passagers?.economique || 0) * (v.prix_ticket_eco || 0) +
+      (v.nb_passagers?.affaire || 0) * (v.prix_ticket_affaire || 0);
 
+    // Bénéfice
     const ben = rev - cTot;
 
-    revTot += rev;
-    coutTot += cTot;
+    // Cumuler
+    cumulsParIndex[idx].revenu += rev;
+    cumulsParIndex[idx].cout += cTot;
+    cumulsParIndex[idx].benefice += ben;
 
-    html += `
-<tr>
-  <td>${i + 1}</td>
-  <td>${v.depart}→${v.arrivee}</td>
-  <td>${fmt(rev)}</td>
-  <td>
-    <span>${fmt(cTot)}</span>
-    <button class="details-icon" onclick="toggleDetails('${detailId}')">Détails</button>
-    <div class="details-card" id="${detailId}" style="display: none; max-width: 300px; margin-top: 5px;">
-      ${prixCarburant && prixCarburant !== 0 
-  ? `<div class="cost-line"><span>Prix carburant (${v.depart}) :</span><strong>${prixCarburant.toFixed(2)} MGA/L</strong></div>` 
-  : ''
-}
-      ${afficherLigneCout("Coût carburant total", cCarb)}
-      ${afficherLigneCout("Coût atterrissage", cAtterrissage)}
-      ${afficherLigneCout("Coût atterrissage escale", cAtterrissageEscale)}
-      ${afficherLigneCout("Coût balisage", cBalisage)}
-      ${afficherLigneCout("Coût balisage escale", balisageEscale)}
-      ${afficherLigneCout("Coût approche", cApproche)}
-      ${afficherLigneCout("Coût approche escale", cApprocheEscale)}
-      ${v.est_en_panne ? afficherLigneCout("Coût panne", 200000) : ""}
-      ${afficherLigneCout("Hébergement total", coutHebergement)}
-
-<ul class="liste-couts" id="liste-couts-${detailId}">
-  ${
-    coutsManuels[detailId] && coutsManuels[detailId].length > 0
-      ? coutsManuels[detailId]
-          .map(
-            (c, idx) => `
-              <li>
-                <span>${c.motif} : ${c.montant.toLocaleString()} MGA</span>
-                <button class="btn-supprimer" onclick="supprimerCoutManuel('${detailId}', ${idx})">×</button>
-              </li>`
-          )
-          .join('')
-      : ''
-  }
-</ul>
-<button class="btn-plus" id="btn-plus-${detailId}" onclick="toggleAjoutCout('${detailId}')">+ Ajouter un coût</button>
-
-
-<!-- Formulaire caché par défaut -->
-<div class="ajout-cout-manuel" id="container-${detailId}" style="display:none; margin-top:5px;">
-  <div class="form-inline">
-    <input type="number" id="customCost-${detailId}" placeholder="Montant (MGA)" class="input-cost" />
-    <input type="text" id="customMotif-${detailId}" placeholder="Motif du coût" class="input-motif" />
-    <button onclick="ajouterCoutManuel('${detailId}')" class="btn-ajouter">Ajouter</button>
-  </div>
-</div>
-
-
-
-    </div>
-  </td>
-  <td class="${ben >= 0 ? 'ok' : 'ko'}">${fmt(ben)}</td>
-</tr>
-`;
+    // Cumuler détails coûts par type (sans doublons)
+    const coutTypes = {
+      'Carburant': cCarb,
+      'Atterrissage': cAtterrissage,
+      'Balisage': cBalisage,
+      'Approche': cApproche,
+      'Coût panne': v.est_en_panne ? 200000 : 0,
+      'Hébergement': coutHebergement,
+      'Atterrissage escale': cAtterrissageEscale,
+      'Approche escale': cApprocheEscale,
+      'Balisage escale': balisageEscale,
+      'Coûts manuels': coutsManuelsTotal
+    };
+    for (const [lib, val] of Object.entries(coutTypes)) {
+      if (!cumulsParIndex[idx].detailsCouts[lib]) {
+        cumulsParIndex[idx].detailsCouts[lib] = 0;
+      }
+      cumulsParIndex[idx].detailsCouts[lib] += val;
+    }
   });
 
-  const prof = revTot - coutTot;
-  html += `</table><p style="margin-top:10px"><strong>Résultat global :</strong> <span class="${prof >= 0 ? 'ok' : 'ko'}">${fmt(prof)} MGA</span></p>`;
+  // Génération HTML tableau regroupé par index
+  let html = `<table>
+    <tr>
+      <th>#</th>
+      <th>Routes</th>
+      <th>Escale</th>
+      <th>Revenu</th>
+      <th>Coût</th>
+      <th>Bénéfice</th>
+    </tr>`;
+
+  Object.entries(cumulsParIndex).forEach(([idx, data]) => {
+    const escaleInfo = escalesParIndex[idx];
+    let escaleTexte = '—';
+    let escaleColor = 'inherit';
+
+    if (escaleInfo?.escale) {
+      if (escaleInfo.hebergement) {
+        escaleTexte = 'Escale avec hébergement';
+        escaleColor = 'green';
+      } else {
+        escaleTexte = 'Escale sans hébergement';
+        escaleColor = 'blue';
+      }
+    }
+
+    // Construire la liste des routes (séparées par ", ")
+    const routesTexte = [...new Set(data.routes)].join(', ');
+
+    // Préparer contenu détails en supprimant les coûts nuls ou 0 et sans afficher revenu/coût/benefice
+    const lignesDetails = Object.entries(data.detailsCouts)
+      .filter(([, val]) => val > 0)
+      .map(([lib, val]) => `<div class="cost-line"><span>${lib}</span>: <strong>${fmt(val)}</strong></div>`)
+      .join('');
+
+    html += `
+      <tr>
+        <td>${idx}</td>
+        <td class="routes-cell">${routesTexte}</td>
+        <td style="color: ${escaleColor}; font-weight: bold;">${escaleTexte}</td>
+        <td>${fmt(data.revenu)}</td>
+        <td>
+          <span>${fmt(data.cout)}</span>
+          <button class="details-icon" onclick="toggleDetails('detail-${idx}')">Détails</button>
+          <div class="details-card" id="detail-${idx}" style="display: none; max-width: 400px; margin-top: 5px;">
+            ${lignesDetails || '<em>Aucun coût supplémentaire</em>'}
+          </div>
+        </td>
+        <td class="${data.benefice >= 0 ? 'ok' : 'ko'}">${fmt(data.benefice)}</td>
+      </tr>
+    `;
+  });
+
+  html += '</table>';
+
+  // Résultat global cumulé
+  const profitGlobal = Object.values(cumulsParIndex).reduce((acc, d) => acc + d.benefice, 0);
+  html += `<p style="margin-top:10px"><strong>Résultat global :</strong> <span class="${profitGlobal >= 0 ? 'ok' : 'ko'}">${fmt(profitGlobal)} MGA</span></p>`;
+
   document.getElementById('resultats').innerHTML = html;
 }
 
+
 document.getElementById('btnSimuler').addEventListener('click', () => {
   mettreAJourRavitaillement();
+  ajouterVolEscale();
+  buildTable();
   simulate();
   })
 
