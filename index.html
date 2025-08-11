@@ -409,14 +409,11 @@ table#tblVols th:nth-child(2) {
 
   <br><br>
 
-<label>Heure atterrissage :
-  <input type="time" id="heureArriveeEscale">
-</label>
 <label>Heure départ :
   <input type="time" id="heureDepartEscale">
 </label>
 <label>Heure arrivée :
-  <input type="time" id="heureArriveeFinale">
+  <input type="time" id="heureArriveeEscale">
 </label>
 
 </div>
@@ -443,7 +440,7 @@ table#tblVols th:nth-child(2) {
   </div>
 
   <main>
-    <h2>📝 Paramétrage des vols</h2>
+    <h2>📝 Paramétrage des vols</h2>    
     <table id="tblVols">
       <thead>
         <tr>
@@ -582,7 +579,6 @@ function mettreAJourRavitaillement() {
   const typeEscale = document.getElementById('typeEscale').value;
   const heureArriveeEscale = document.getElementById('heureArriveeEscale').value;
   const heureDepartEscale = document.getElementById('heureDepartEscale').value;
-  const heureArriveeFinale = document.getElementById('heureArriveeFinale').value;
   const volId = document.getElementById('select-vol-ravitail').value;
 
   ravitaillementData = {
@@ -590,7 +586,6 @@ function mettreAJourRavitaillement() {
     typeEscale,
     heureArriveeEscale,
     heureDepartEscale,
-    heureArriveeFinale,
     volId,
   };
 
@@ -631,16 +626,25 @@ selectEscale.addEventListener('change', () => {
 
 // Calcule l'heure d'arrivée en string "HH:MM" à partir du départ et durée vol
 function getArrivalTime(v) {
+  // Prioriser heure_arrivee_saisie si définie (utile pour escale)
+  if (v.heure_arrivee_saisie) {
+    return v.heure_arrivee_saisie;
+  }
+
   const key1 = `${v.depart}-${v.arrivee}`;
   const key2 = `${v.arrivee}-${v.depart}`;
   const minutes = parseMinutes(durees[key1] ?? durees[key2]);
   if (isNaN(minutes) || !v.heure_depart || !v.date_depart) return null;
+
   const departDate = new Date(`${v.date_depart}T${v.heure_depart}`);
   if (isNaN(departDate)) return null;
+
   const arrivalDate = new Date(departDate.getTime() + minutes * 60000);
   if (isNaN(arrivalDate)) return null;
+
   return arrivalDate.toTimeString().slice(0, 5);
 }
+
 
 function getDepartTime(v) {
   if (!v.heure_depart || !v.date_depart) return null;
@@ -804,6 +808,7 @@ function buildTable() {
   });
 
   vols.forEach((v, i) => {
+    console.log('Avion:', v.type_avion, '|', v.matricule);
     if (!airports.includes(v.depart)) v.depart = airports[0] || '';
     if (!airports.includes(v.arrivee)) v.arrivee = airports[0] || '';
 
@@ -904,6 +909,8 @@ function buildTable() {
 function remplirSelectIndispoAvion() {
   const select = document.getElementById('select-indispo-avion');
   const avions = getAvionsMatricules(); // [[type, matricule], ...]
+  console.log('Liste avions pour indispo:', avions);
+
 
   select.innerHTML = `<option value="">-- Sélectionnez un avion --</option>` +
     avions.map(([type, mat]) => `<option value="${type}|${mat}">${type} (${mat})</option>`).join('');
@@ -931,6 +938,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (avionChoisi) {
       avionsIndisponibles.add(avionChoisi);
     }
+     console.log("Contenu avionsIndisponibles après ajout:", Array.from(avionsIndisponibles));
     buildTable();
   });
 
@@ -1184,9 +1192,16 @@ function getSunriseForNextDay(codeIATA, dateStr) {
 // Calcule et met à jour prix et balisage dans la table
 function setPrices(i) {
   const v = vols[i];
-  const prices = getPriceForRoute(v.depart, v.arrivee);
-  v.prix_ticket_eco = usd(prices.eco);
-  v.prix_ticket_affaire = usd(prices.aff);
+  
+  // Si vol escale, on force les prix à 0
+  if (v.estEscale) {
+    v.prix_ticket_eco = 0;
+    v.prix_ticket_affaire = 0;
+  } else {
+    const prices = getPriceForRoute(v.depart, v.arrivee);
+    v.prix_ticket_eco = usd(prices.eco);
+    v.prix_ticket_affaire = usd(prices.aff);
+  }
 
   const arrivalStr = getArrivalTime(v);
   const departStr = getDepartTime(v);
@@ -1284,7 +1299,8 @@ if (isDepartAfterSunsetMinus20 && isArrivalAfterSunsetMinus20) {
     balisageCell.textContent = "Pas de coût";
     balisageCell.className = "balisage ok";
   }
-  
+  console.log("setPrices key:", key, "couts[key]:", couts[key]);
+
 }
 
 
@@ -1435,17 +1451,26 @@ function simulate() {
   }
 
   function getDurationFromUserInput() {
-    if (!ravitaillementData?.heureDepartEscale || !ravitaillementData?.heureArriveeEscale) {
-      return 0;
-    }
-    const [hD, mD] = ravitaillementData.heureDepartEscale.split(':').map(Number);
-    const [hA, mA] = ravitaillementData.heureArriveeEscale.split(':').map(Number);
-
-    let duree = (hA * 60 + mA) - (hD * 60 + mD);
-    if (duree < 0) duree += 24 * 60; // Gestion passage minuit
-
-    return duree;
+  if (!ravitaillementData?.heureDepartEscale || !ravitaillementData?.heureArriveeEscale) {
+    console.warn('Heure départ ou arrivée escale manquante');
+    return 0;
   }
+  console.log(`Heure départ escale: ${ravitaillementData.heureDepartEscale}`);
+  console.log(`Heure arrivée escale: ${ravitaillementData.heureArriveeEscale}`);
+
+  const [hD, mD] = ravitaillementData.heureDepartEscale.split(':').map(Number);
+  const [hA, mA] = ravitaillementData.heureArriveeEscale.split(':').map(Number);
+
+  console.log(`Parsed heure départ escale: ${hD}h${mD}`);
+  console.log(`Parsed heure arrivée escale: ${hA}h${mA}`);
+
+  let duree = (hA * 60 + mA) - (hD * 60 + mD);
+  if (duree < 0) duree += 24 * 60; // Gestion passage minuit
+
+  console.log(`Durée escale calculée : ${duree} minutes`);
+
+  return duree;
+}
 
   // Données escale
   const volIdSelectionne = ravitaillementData?.volId;
@@ -1494,6 +1519,10 @@ function simulate() {
       const prixCarbPrincipal = carburant[v.depart] || 0;
       coutCarb += dureeHPrincipal * consoLitresH * prixCarbPrincipal;
 
+      console.log(`[Carburant] Vol principal ${v.id}: durée ${dureeMinPrincipal} min (${dureeHPrincipal.toFixed(2)} h), ` +
+        `conso ${consoLitresH.toFixed(2)} L/h, prix/litre ${prixCarbPrincipal}, coût carburant segment: ${coutCarb.toFixed(2)}`);
+
+
       // Chercher segment escale associé
       const volEscale = vols.find(
         ve => ve.estEscale && ve.id.startsWith(v.id)
@@ -1504,7 +1533,13 @@ function simulate() {
         const dureeHEscale = dureeMinEscale / 60;
         const consoLitresHEscale = getHourlyConsumptionLitres(volEscale);
         const prixCarbEscale = carburant[volEscale.depart] || 0;
-        coutCarb += dureeHEscale * consoLitresHEscale * prixCarbEscale;
+        const coutCarbEscale = dureeHEscale * consoLitresHEscale * prixCarbEscale;
+        coutCarb += coutCarbEscale;
+
+        console.log(`[Carburant] Vol escale ${volEscale.id}: durée ${dureeMinEscale} min (${dureeHEscale.toFixed(2)} h), ` +
+          `conso ${consoLitresHEscale.toFixed(2)} L/h, prix/litre ${prixCarbEscale}, coût carburant segment: ${coutCarbEscale.toFixed(2)}`);
+        
+
       }
     } else {
       // Si on boucle sur un vol escale seul (ex: dans vols), on peut calculer aussi normalement
@@ -1593,6 +1628,16 @@ function simulate() {
       cumulsParIndex[idx].detailsCouts[lib] += val;
     }
   });
+// Trouver le groupe le plus rentable
+  let maxBenefice = -Infinity;
+  let groupePlusRentable = null;
+
+  Object.entries(cumulsParIndex).forEach(([idx, data]) => {
+    if (data.benefice > maxBenefice) {
+      maxBenefice = data.benefice;
+      groupePlusRentable = idx;
+    }
+  });
 
   // --- Affichage tableau ---
   let html = `<table>
@@ -1626,6 +1671,9 @@ function simulate() {
       .map(([lib, val]) => `<div class="cost-line"><span>${lib}</span>: <strong>${fmt(val)}</strong></div>`)
       .join('');
 
+       const estPlusRentable = (idx === groupePlusRentable);
+       const texteBenefice = `${fmt(data.benefice)}${estPlusRentable ? ' ✅ ' : ''}`;
+
     html += `
       <tr>
         <td>${idx}</td>
@@ -1639,7 +1687,7 @@ function simulate() {
             ${lignesDetails || '<em>Aucun coût supplémentaire</em>'}
           </div>
         </td>
-        <td class="${data.benefice >= 0 ? 'ok' : 'ko'}">${fmt(data.benefice)}</td>
+         <td class="${data.benefice >= 0 ? 'ok' : 'ko'}">${texteBenefice}</td>
       </tr>
     `;
   });
