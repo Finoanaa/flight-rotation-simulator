@@ -678,6 +678,7 @@ console.log("🟡 sunTimes keys:", Object.keys(sunTimes));
   airportsFromPrices = Array.from(set).sort();
 
   buildTable();
+  console.log("Prix USD chargé:", prixUSD);
 }).catch(err => alert('Erreur chargement JSON : ' + err));
 
 function getHebergementCost(codeIATA) {
@@ -1096,10 +1097,14 @@ function updateRoute(sel) {
 
 // Cherche prix en USD d'un trajet, ou 0 par défaut
 function getPriceForRoute(dep, arr) {
-  return prixUSD[`${dep}-${arr}`]
+  console.log("Recherche prix pour clés:", `${dep}-${arr}`, "ou", `${arr}-${dep}`);
+ const result = prixUSD[`${dep}-${arr}`]
       || prixUSD[`${arr}-${dep}`]
       || { eco: 0, aff: 0 };
+      console.log("Prix trouvés:", result);
+  return result;
 }
+
 
 // Déclarations globales (une seule fois)
 const airportNameMap = {
