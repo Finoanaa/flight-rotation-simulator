@@ -902,6 +902,14 @@ function buildTable() {
     }
 
     setPrices(i);
+    
+  });
+  document.getElementById('select-indispo-avion').addEventListener('change', function() {
+    const avionChoisi = this.value;
+    if (avionChoisi) {
+      avionsIndisponibles.add(avionChoisi);
+    }
+    buildTable();
   });
 }
 
@@ -910,7 +918,6 @@ function remplirSelectIndispoAvion() {
   const select = document.getElementById('select-indispo-avion');
   const avions = getAvionsMatricules(); // [[type, matricule], ...]
   console.log('Liste avions pour indispo:', avions);
-
 
   select.innerHTML = `<option value="">-- Sélectionnez un avion --</option>` +
     avions.map(([type, mat]) => `<option value="${type}|${mat}">${type} (${mat})</option>`).join('');
@@ -929,18 +936,12 @@ document.addEventListener('DOMContentLoaded', () => {
       buildTable();
     }
   });
+
    document.getElementById('select-escale').addEventListener('change', mettreAJourRavitaillement);
   document.getElementById('typeEscale').addEventListener('change', mettreAJourRavitaillement);
   document.getElementById('heureEscale').addEventListener('input', mettreAJourRavitaillement);
 
-  document.getElementById('select-indispo-avion').addEventListener('change', function() {
-    const avionChoisi = this.value;
-    if (avionChoisi) {
-      avionsIndisponibles.add(avionChoisi);
-    }
-     console.log("Contenu avionsIndisponibles après ajout:", Array.from(avionsIndisponibles));
-    buildTable();
-  });
+  
 
   document.getElementById('btnSimuler').onclick = simulate;
 });
@@ -1108,7 +1109,7 @@ const airportNameMap = {
   "MJN": "MAHAJANGA",
   "MNJ": "MANANJARY",
   "MOQ": "MORONDAVA",
-  "NOS": "NOSY-BE",
+  "NOS": "NOSY BE",
   "SVB": "SAMBAVA",
   "TLE": "TOLIARA",
   "TMM": "TOAMASINA",
@@ -1291,13 +1292,16 @@ if (isDepartAfterSunsetMinus20 && isArrivalAfterSunsetMinus20) {
     if (balisageVal > 0) {
       balisageCell.textContent = `${fmt(balisageFinal)}`;
       balisageCell.className = "balisage ok";
+      v.cout_balisage = balisageFinal;
     } else {
       balisageCell.textContent = "Pas autorisé";
       balisageCell.className = "balisage ko";
+      v.cout_balisage = 0;
     }
   } else {
     balisageCell.textContent = "Pas de coût";
     balisageCell.className = "balisage ok";
+    v.cout_balisage = 0;
   }
   console.log("setPrices key:", key, "couts[key]:", couts[key]);
 
@@ -1554,7 +1558,7 @@ function simulate() {
     const key = `${v.type_avion}-${v.arrivee}`;
     const cEscal = couts[key] || {};
     const cAtterrissage = (cEscal.atterrissage_adema || 0) + (cEscal.atterrissage_asecna || 0) + (cEscal.atterrissage_ravinala || 0);
-    const cBalisage = (cEscal.balisage_adema || 0) + (cEscal.balisage_asecna || 0);
+    const cBalisage = v.cout_balisage || 0;
     const cApproche = cEscal.approche_adema || 0;
 
     const nbPassagersTotal = (v.nb_passagers?.economique || 0) + (v.nb_passagers?.affaire || 0);
