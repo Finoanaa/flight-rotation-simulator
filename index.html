@@ -1559,7 +1559,7 @@ function simulate() {
       coutCarb = dureeH * consoLitresH * prixCarb;
     }
 
-    // --- Coûts escale ---
+// --- Coûts escale ---
     const key = `${v.type_avion}-${v.arrivee}`;
     const cEscal = couts[key] || {};
     const cAtterrissage = (cEscal.atterrissage_adema || 0) + (cEscal.atterrissage_asecna || 0) + (cEscal.atterrissage_ravinala || 0);
@@ -1575,17 +1575,49 @@ function simulate() {
       coutHebergement = hebergUnitCost * nbPassagersTotal;
     }
 
+// --- Coûts atterrissage et escale ---
+const keyDep = `${v.type_avion}-${v.depart}`;
+const keyArr = `${v.type_avion}-${v.arrivee}`;
+
+const cDep = couts[keyDep] || {};
+const cArr = couts[keyArr] || {};
+
+console.log("cDep:", cDep);
+console.log("cArr:", cArr);
+
+const cAtterrissageDep = (cDep.atterrissage_adema || 0) + (cDep.atterrissage_asecna || 0) + (cDep.atterrissage_ravinala || 0);
+const cAtterrissageArr = (cArr.atterrissage_adema || 0) + (cArr.atterrissage_asecna || 0) + (cArr.atterrissage_ravinala || 0);
+
+console.log("cAtterrissageDep:", cAtterrissageDep, "| cAtterrissageArr:", cAtterrissageArr);
+
+const cAtterrissageTotal = cAtterrissageDep + cAtterrissageArr;
+
     // Coûts escale supplémentaires
-    let cAtterrissageEscale = 0;
-    let cApprocheEscale = 0;
-    if ((typeEscale === 'hebergement' || typeEscale === 'standard') && volIdSelectionne === v.id) {
-      const escaleKey = `${v.type_avion}-${escaleCode}`;
-      const escaleCouts = couts[escaleKey] || {};
-      cAtterrissageEscale = (escaleCouts.atterrissage_adema || 0) +
-                            (escaleCouts.atterrissage_asecna || 0) +
-                            (escaleCouts.atterrissage_ravinala || 0);
-      cApprocheEscale = escaleCouts.approche_adema || 0;
-    }
+let cAtterrissageEscale = 0;
+let cApprocheEscale = 0;
+if ((typeEscale === 'hebergement' || typeEscale === 'standard') && volIdSelectionne === v.id) {
+
+  console.log("=== CALCUL COÛTS ESCALE ===");
+    console.log("Type escale:", typeEscale, "| Escale code:", escaleCode);
+
+  const escaleDepKey = `${v.type_avion}-${v.depart}`;      // départ du segment escale
+  const escaleArrKey = `${v.type_avion}-${escaleCode}`;    // arrivée du segment escale
+
+console.log("escaleDepKey:", escaleDepKey, "| escaleArrKey:", escaleArrKey);
+
+  const escaleDep = couts[escaleDepKey] || {};
+  const escaleArr = couts[escaleArrKey] || {};
+
+   console.log("escaleDep:", escaleDep);
+    console.log("escaleArr:", escaleArr);
+
+  const cAtterrissageDepEscale = (escaleDep.atterrissage_adema || 0) + (escaleDep.atterrissage_asecna || 0) + (escaleDep.atterrissage_ravinala || 0);
+  const cAtterrissageArrEscale = (escaleArr.atterrissage_adema || 0) + (escaleArr.atterrissage_asecna || 0) + (escaleArr.atterrissage_ravinala || 0);
+
+  cAtterrissageEscale = cAtterrissageDepEscale + cAtterrissageArrEscale;
+  cApprocheEscale = escaleArr.approche_adema || 0;
+}
+
 
     let balisageEscale = 0;
     if (typeof ravitaillementData !== 'undefined' &&
@@ -1604,9 +1636,9 @@ function simulate() {
     }
 
     // Coût total
-    const cTot = coutCarb + cAtterrissage + cBalisage + cApproche +
+    const cTot = coutCarb + cAtterrissageTotal + cBalisage + cApproche +
       (v.est_en_panne ? 200000 : 0) +
-      coutHebergement + cAtterrissageEscale + cApprocheEscale + balisageEscale +
+      coutHebergement + cApprocheEscale + balisageEscale +
       coutsManuelsTotal;
 
     // Revenu & bénéfice
@@ -1620,14 +1652,14 @@ function simulate() {
 
     const coutTypes = {
       'Carburant': coutCarb,
-      'Atterrissage': cAtterrissage,
+      'Atterrissage': cAtterrissageTotal,
       'Balisage': cBalisage,
       'Approche': cApproche,
       'Coût panne': v.est_en_panne ? 200000 : 0,
       'Hébergement': coutHebergement,
-      'Atterrissage escale': cAtterrissageEscale,
-      'Approche escale': cApprocheEscale,
-      'Balisage escale': balisageEscale,
+      //'Atterrissage escale': cAtterrissageEscale,
+      //'Approche escale': cApprocheEscale,
+      //'Balisage escale': balisageEscale,
       'Coûts manuels': coutsManuelsTotal
     };
     for (const [lib, val] of Object.entries(coutTypes)) {
@@ -1649,64 +1681,99 @@ function simulate() {
   });
 
   // --- Affichage tableau ---
-  let html = `<table>
-    <tr>
-      <th>#</th>
-      <th>Routes</th>
-      <th>Escale</th>
-      <th>Revenu</th>
-      <th>Coût</th>
-      <th>Bénéfice</th>
-    </tr>`;
+  // --- Affichage tableau ---
+let html = `<table>
+  <tr>
+    <th>#</th>
+    <th>Routes</th>
+    <th>Escale</th>
+    <th>Revenu</th>
+    <th>Coût</th>
+    <th>Bénéfice</th>
+  </tr>`;
 
-  Object.entries(cumulsParIndex).forEach(([idx, data]) => {
-    const escaleInfo = escalesParIndex[idx];
-    let escaleTexte = '—';
-    let escaleColor = 'inherit';
+Object.entries(cumulsParIndex).forEach(([idx, data]) => {
+  const escaleInfo = escalesParIndex[idx];
+  let escaleTexte = '—';
+  let escaleColor = 'inherit';
 
-    if (escaleInfo?.escale) {
-      if (escaleInfo.hebergement) {
-        escaleTexte = 'Escale avec hébergement';
-        escaleColor = 'green';
-      } else {
-        escaleTexte = 'Escale sans hébergement';
-        escaleColor = 'blue';
-      }
+  if (escaleInfo?.escale) {
+    if (escaleInfo.hebergement) {
+      escaleTexte = 'Escale avec hébergement';
+      escaleColor = 'green';
+    } else {
+      escaleTexte = 'Escale sans hébergement';
+      escaleColor = 'blue';
     }
+  }
 
-    const routesTexte = [...new Set(data.routes)].join(', ');
-    const lignesDetails = Object.entries(data.detailsCouts)
-      .filter(([, val]) => val > 0)
-      .map(([lib, val]) => `<div class="cost-line"><span>${lib}</span>: <strong>${fmt(val)}</strong></div>`)
-      .join('');
+  const routesTexte = [...new Set(data.routes)].join(', ');
 
-       const estPlusRentable = (idx === groupePlusRentable);
-       const texteBenefice = `${fmt(data.benefice)}${estPlusRentable ? ' ✅ ' : ''}`;
+  // Détails des coûts hors coûts manuels
+  const lignesDetails = Object.entries(data.detailsCouts)
+    .filter(([lib, val]) => val > 0 && lib !== 'Coûts manuels')
+    .map(([lib, val]) => `<div class="cost-line"><span>${lib}</span>: <strong>${fmt(val)}</strong></div>`)
+    .join('');
 
-    html += `
-      <tr>
-        <td>${idx}</td>
-        <td class="routes-cell">${routesTexte}</td>
-        <td style="color: ${escaleColor}; font-weight: bold;">${escaleTexte}</td>
-        <td>${fmt(data.revenu)}</td>
-        <td>
-          <span>${fmt(data.cout)}</span>
-          <button class="details-icon" onclick="toggleDetails('detail-${idx}')">Détails</button>
-          <div class="details-card" id="detail-${idx}" style="display: none; max-width: 400px; margin-top: 5px;">
-            ${lignesDetails || '<em>Aucun coût supplémentaire</em>'}
+  const estPlusRentable = (idx === groupePlusRentable);
+  const texteBenefice = `${fmt(data.benefice)}${estPlusRentable ? ' ✅ ' : ''}`;
+
+  html += `
+    <tr>
+      <td>${idx}</td>
+      <td class="routes-cell">${routesTexte}</td>
+      <td style="color: ${escaleColor}; font-weight: bold;">${escaleTexte}</td>
+      <td>${fmt(data.revenu)}</td>
+      <td>
+        <span>${fmt(data.cout)}</span>
+        <button class="details-icon" onclick="toggleDetails('detail-${idx}')">Détails</button>
+        <div class="details-card" id="detail-${idx}" style="display: none; max-width: 400px; margin-top: 5px;">
+          ${lignesDetails || '<em>Aucun coût supplémentaire</em>'}
+
+          <div class="ajout-cout-manuel">
+            <button 
+              id="btn-plus-detail-${idx}"
+              class="btn-plus"
+              onclick="toggleAjoutCout('detail-${idx}')"
+            >
+              ➕ Ajouter un coût manuel
+            </button>
+
+            <div id="container-detail-${idx}" style="display:none;">
+              <div class="form-inline">
+                <input type="number" id="customCost-detail-${idx}" placeholder="Montant" class="input-cost">
+                <input type="text" id="customMotif-detail-${idx}" placeholder="Motif" class="input-motif">
+                <button class="btn-ajouter" onclick="ajouterCoutManuel('detail-${idx}')">Ajouter</button>
+              </div>
+            </div>
+
+           <ul id="liste-couts-detail-${idx}" class="liste-couts">
+  ${(coutsManuels[`detail-${idx}`] && coutsManuels[`detail-${idx}`].length > 0)
+    ? coutsManuels[`detail-${idx}`].map((c, i) => `
+      <li>
+        <span>${c.motif} : ${fmt(c.montant)}</span>
+        <button class="btn-supprimer" onclick="supprimerCoutManuel('detail-${idx}', ${i})">×</button>
+      </li>
+    `).join('')
+    : '<li style="color:#888">Aucun coût manuel</li>'
+  }
+</ul>
+
           </div>
-        </td>
-         <td class="${data.benefice >= 0 ? 'ok' : 'ko'}">${texteBenefice}</td>
-      </tr>
-    `;
-  });
+        </div>
+      </td>
+      <td class="${data.benefice >= 0 ? 'ok' : 'ko'}">${texteBenefice}</td>
+    </tr>
+  `;
+});
 
-  html += '</table>';
+html += '</table>';
 
-  const profitGlobal = Object.values(cumulsParIndex).reduce((acc, d) => acc + d.benefice, 0);
-  html += `<p style="margin-top:10px"><strong>Résultat global :</strong> <span class="${profitGlobal >= 0 ? 'ok' : 'ko'}">${fmt(profitGlobal)} MGA</span></p>`;
+const profitGlobal = Object.values(cumulsParIndex).reduce((acc, d) => acc + d.benefice, 0);
+html += `<p style="margin-top:10px"><strong>Résultat global :</strong> <span class="${profitGlobal >= 0 ? 'ok' : 'ko'}">${fmt(profitGlobal)} MGA</span></p>`;
 
-  document.getElementById('resultats').innerHTML = html;
+document.getElementById('resultats').innerHTML = html;
+
 }
 
 
